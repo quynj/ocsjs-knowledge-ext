@@ -10,7 +10,11 @@ SYSTEM_JUDGE = SYSTEM_BASE + "\n题型: 判断题。仅输出 正确 或 错误�
 SYSTEM_FILL = SYSTEM_BASE + "\n题型: 填空题。仅输出填空文本答案。"
 
 
-def build_messages(title: str, options: Optional[List[str]], qtype: Optional[str], system_prompt: Optional[str]) -> List[Dict[str, str]]:
+def build_messages(
+    title: str,
+    options: Optional[List[str]], 
+    qtype: Optional[str]
+ ) -> List[Dict[str, str]]:
     t = (qtype or "").lower()
 
     # 选择系统提示
@@ -24,9 +28,6 @@ def build_messages(title: str, options: Optional[List[str]], qtype: Optional[str
         system = SYSTEM_FILL
     else:
         system = SYSTEM_BASE
-
-    if system_prompt:
-        system = system_prompt.strip() + "\n" + system
 
     user_lines = [f"题目：{title.strip()}"]
     if options:

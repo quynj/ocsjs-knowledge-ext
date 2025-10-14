@@ -1,14 +1,17 @@
-from typing import Any, Dict, List, Optional
+from typing import Dict, List
 from openai import AsyncOpenAI
+from dotenv import load_dotenv
+import os
 
+load_dotenv()  # 自动加载 .env 到环境变量
 
-class OpenAICompatibleClient:
-    def __init__(self, base_url: str, api_key: str, model: str, *, temperature: Optional[float] = None, top_p: Optional[float] = None):
-        self.base_url = base_url.rstrip("/")
-        self.api_key = api_key
-        self.model = model
-        self.temperature = temperature
-        self.top_p = top_p
+class OpenAIChatClient:
+    def __init__(self):
+        self.base_url = os.getenv("OPEN_AI_BASE_URL", "").rstrip("/")
+        self.api_key = os.getenv("OPEN_AI_API_KEY", "")
+        self.model = os.getenv("OPEN_AI_MODEL", "")
+        self.temperature = 0.8
+        self.top_p = 1.0
 
     async def chat(self, messages: List[Dict[str, str]]) -> str:
         async with AsyncOpenAI(api_key=self.api_key, base_url=self.base_url) as client:
