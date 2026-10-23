@@ -7,7 +7,7 @@ from fastapi import Body, FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 
-from app.config import MAX_OPTIONS_COUNT, MAX_TITLE_LENGTH, Settings
+from app.config import Settings
 from app.llm import answer
 from app.models import ErrorResponse, OptionObject, QueryRequest, SuccessResponse
 from app.parsing import parse_answer
@@ -37,9 +37,15 @@ def _error(code: int, message: str) -> ErrorResponse:
 
 
 async def _process_query(request: QueryRequest) -> SuccessResponse | ErrorResponse:
-    if len(request.title) > MAX_TITLE_LENGTH:
+    try:
+        settings = Settings.from_env()
+    except ValueError as exc:
+        logger.warning("Invalid model configuration: %s", exc)
+        return _error(50001, str(exc))
+
+    if len(request.title) > settings.max_title_length:
         return _error(40003, "title too long")
-    if request.options and len(request.options) > MAX_OPTIONS_COUNT:
+    if request.options and len(request.options) > settings.max_options_count:
         return _error(40003, "too many options")
     if request.options:
         labels = [
@@ -52,7 +58,6 @@ async def _process_query(request: QueryRequest) -> SuccessResponse | ErrorRespon
             return _error(40003, "option labels must be unique")
 
     try:
-        settings = Settings.from_env()
         system_prompt, user_prompt = build_prompt(
             request.title, request.options, request.type
         )

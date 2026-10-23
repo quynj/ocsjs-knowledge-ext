@@ -2,7 +2,7 @@ from typing import Any
 
 import httpx
 
-from app.config import REQUEST_TIMEOUT_SECONDS, Settings
+from app.config import Settings
 
 
 def _response_text(payload: dict[str, Any], api_type: str) -> str:
@@ -73,7 +73,10 @@ async def answer(system_prompt: str, user_prompt: str, settings: Settings) -> st
             "input": user_prompt,
         }
 
-    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS) as client:
+    if settings.temperature is not None:
+        payload["temperature"] = settings.temperature
+
+    async with httpx.AsyncClient(timeout=settings.request_timeout_seconds) as client:
         response = await client.post(
             endpoint,
             headers={"Authorization": f"Bearer {settings.api_key}"},

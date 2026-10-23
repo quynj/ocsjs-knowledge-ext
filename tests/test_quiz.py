@@ -67,8 +67,20 @@ class ModelRequestTests(unittest.IsolatedAsyncioTestCase):
             expected_payload_keys={"model", "instructions", "input"},
         )
 
+    async def test_passes_temperature_when_configured(self) -> None:
+        await self._assert_api_request(
+            api_type="chat_completions",
+            expected_path="/v1/chat/completions",
+            expected_payload_keys={"model", "messages", "temperature"},
+            temperature=0.7,
+        )
+
     async def _assert_api_request(
-        self, api_type: ApiType, expected_path: str, expected_payload_keys: set[str]
+        self,
+        api_type: ApiType,
+        expected_path: str,
+        expected_payload_keys: set[str],
+        temperature: float | None = None,
     ) -> None:
         class MockResponse:
             def raise_for_status(self) -> None:
@@ -80,8 +92,9 @@ class ModelRequestTests(unittest.IsolatedAsyncioTestCase):
                 return {"output_text": "A"}
 
         class MockClient:
-            def __init__(self, **_: object) -> None:
+            def __init__(self, **kwargs: object) -> None:
                 type(self).last_instance = self
+                self.timeout = kwargs["timeout"]
                 self.post = AsyncMock(return_value=MockResponse())
 
             async def __aenter__(self) -> "MockClient":
@@ -99,13 +112,37 @@ class ModelRequestTests(unittest.IsolatedAsyncioTestCase):
                     base_url="https://example.test/v1",
                     model="test-model",
                     api_type=api_type,
+                    request_timeout_seconds=7,
+                    temperature=temperature,
                 ),
             )
 
         self.assertEqual(result, "A")
         client = MockClient.last_instance
+        self.assertEqual(client.timeout, 7)
         self.assertEqual(client.post.call_args.args[0], f"https://example.test{expected_path}")
         self.assertEqual(set(client.post.call_args.kwargs["json"]), expected_payload_keys)
+        self.assertEqual(client.post.call_args.kwargs["json"].get("temperature"), temperature)
+
+    def test_reads_configurable_limits_timeout_and_temperature(self) -> None:
+        environment = {
+            "OPEN_AI_REQUEST_TIMEOUT_SECONDS": "12",
+            "OPEN_AI_TEMPERATURE": "0.4",
+            "MAX_TITLE_LENGTH": "1200",
+            "MAX_OPTIONS_COUNT": "10",
+        }
+        with patch.dict(os.environ, environment):
+            settings = Settings.from_env()
+
+        self.assertEqual(settings.request_timeout_seconds, 12)
+        self.assertEqual(settings.temperature, 0.4)
+        self.assertEqual(settings.max_title_length, 1200)
+        self.assertEqual(settings.max_options_count, 10)
+
+    def test_rejects_option_limit_above_supported_label_count(self) -> None:
+        with patch.dict(os.environ, {"MAX_OPTIONS_COUNT": "27"}):
+            with self.assertRaisesRegex(ValueError, "MAX_OPTIONS_COUNT"):
+                Settings.from_env()
 
 
 class QueryEndpointTests(unittest.IsolatedAsyncioTestCase):
@@ -147,3 +184,18 @@ class QueryEndpointTests(unittest.IsolatedAsyncioTestCase):
             "/query", json={"title": "question", "type": "fill"}
         )
         self.assertEqual(response.json()["code"], 40001)
+
+    async def test_uses_configured_question_length_limit(self) -> None:
+        with patch.dict(os.environ, {"MAX_TITLE_LENGTH": "4"}):
+            response = await self.client.post(
+                "/query", json={"title": "longer", "type": "single"}
+            )
+        self.assertEqual(response.json(), {"code": 40003, "message": "title too long"})
+
+    async def test_uses_configured_option_count_limit(self) -> None:
+        with patch.dict(os.environ, {"MAX_OPTIONS_COUNT": "1"}):
+            response = await self.client.post(
+                "/query",
+                json={"title": "question", "type": "single", "options": ["one", "two"]},
+            )
+        self.assertEqual(response.json(), {"code": 40003, "message": "too many options"})
