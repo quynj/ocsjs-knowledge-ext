@@ -1,7 +1,7 @@
 [project]
 name = "ocsjs-knowledge-extentions"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.2.0"
+description = "OpenAI-compatible OCS(Online Course Script) AnswererWrapper service"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -12,6 +12,9 @@ dependencies = [
 	"httpx==0.27.2",
 	"python-dotenv>=1.1.1",
 ]
+
+[tool.fastapi]
+entrypoint = "app.main:app"
 
 [tool.uv.pip]
 # 可更换阿里云 https://mirrors.aliyun.com/pypi/simple

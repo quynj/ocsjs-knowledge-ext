@@ -9,12 +9,15 @@
 
 ## 使用
 
-- 先将`.env.example`文件重命名为`.env`,然后配置`OPEN_AI_API_KEY`、`OPEN_AI_BASE_URL`、`OPEN_AI_MODEL`
+- 复制`.env.example`为`.env`，配置`OPEN_AI_API_KEY`、`OPEN_AI_MODEL`以及模型服务的`OPEN_AI_BASE_URL`。
+- 默认请求 OpenAI Chat Completions API。如服务兼容 Responses API，将`OPEN_AI_API_TYPE`设为`responses`；默认值为`chat_completions`。
+- `OPEN_AI_BASE_URL`填写 API 根地址（通常以`/v1`结尾），使用 OpenAI 官方服务时可以留空。
+- 支持单选题（`single`）、多选题（`multiple`）和判断题（`judge`、`judgement`、`judgment`、`truefalse`或`tf`）；其他题型暂不支持。
 
 - 安装`UV`(强大的python包管理工具):
 
 ```bash
-# 安装 uv（如未安装,下载慢自己上网解决）
+# 安装 uv
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # 同步依赖
@@ -34,6 +37,12 @@ curl "http://localhost:8000/query?title=%E5%9C%B0%E7%90%86%E5%AD%A6%E7%9A%84%E5%
 
 ```json
 {"code":0,"data":{"answer":"A","question":"...","ai":true}}
+```
+
+多选题的`answer`使用`#`分隔，例如`"A#C"`；判断题的`answer`为`"正确"`或`"错误"`。也支持以 JSON 请求体调用`POST /query`：
+
+```json
+{"title":"地理学的对象是什么？","type":"single","options":["地理环境","地理法则"]}
 ```
 
 失败：
@@ -58,15 +67,15 @@ curl "http://localhost:8000/query?title=%E5%9C%B0%E7%90%86%E5%AD%A6%E7%9A%84%E5%
         "options": "${options}",
         "type": "${type}"
     },
-    "handler": "return (res)=>res.code !== 0 ? [res.data.answer, undefined] : [res.data.question,res.data.answer,{ai: res.data.ai}]"
+    "handler": "return (res)=>res.code !== 0 ? [res.message, undefined] : [res.data.question,res.data.answer,{ai: res.data.ai}]"
   }
 ]
 ```
 
-## 拓展ollma
-- 可以让AI帮你实现ollma版本，调用本地的api，无需依赖第三方api服务
-- ocsjs脚本最大搜题限制60秒，需考虑本地模型响应速度
-- 无需让本地模型具备联网搜索功能，依靠llm自身预训练数据即可
+## 开发文档
+
+开发者和编码 Agent 可从 [docs/README.md](./docs/README.md) 开始，了解项目架构、本地配置、API 契约和新增题型步骤。
 
 ## 免责声明
-- 本脚本仅供参考学习使用，使用之后导致的账号被封禁等违规情况与本人无关
+
+本工具仅供个人学习与技术交流使用。使用者应自行确认使用本工具符合所在课程及平台的相关规定，并对使用本工具产生的内容、操作及后果负责。AI 生成内容可能存在错误，开发者不对其准确性或完整性作出保证。

@@ -1,41 +1,27 @@
-from typing import List, Dict, Optional
-
-SYSTEM_BASE = (
-    "你是一个严谨的阅卷老师。请只输出答案，不要解释。"
-)
-
-SYSTEM_SINGLE = SYSTEM_BASE + "\n题型: 单选题。仅输出一个大写字母，如 A。"
-SYSTEM_MULTIPLE = SYSTEM_BASE + "\n题型: 多选题。仅输出不带分隔的多个大写字母，如 ABC。"
-SYSTEM_JUDGE = SYSTEM_BASE + "\n题型: 判断题。仅输出 正确 或 错误。"
-SYSTEM_FILL = SYSTEM_BASE + "\n题型: 填空题。仅输出填空文本答案。"
+from app.models import OptionObject
 
 
-def build_messages(
-    title: str,
-    options: Optional[List[str]], 
-    qtype: Optional[str]
- ) -> List[Dict[str, str]]:
-    t = (qtype or "").lower()
-
-    # 选择系统提示
-    if t.startswith("single"):
-        system = SYSTEM_SINGLE
-    elif t.startswith("multiple"):
-        system = SYSTEM_MULTIPLE
-    elif t.startswith("judge") or t in ("tf", "truefalse"):
-        system = SYSTEM_JUDGE
-    elif t.startswith("fill"):
-        system = SYSTEM_FILL
+def build_prompt(
+    title: str, options: list[str | OptionObject] | None, qtype: str
+) -> tuple[str, str]:
+    normalized_type = qtype.lower()
+    if normalized_type in ("single",):
+        instruction = "单选题：只返回一个选项字母，例如 A。"
+    elif normalized_type == "multiple":
+        instruction = "多选题：只返回所有正确选项字母，例如 A,C。"
     else:
-        system = SYSTEM_BASE
+        instruction = "判断题：只返回“正确”或“错误”。"
 
-    user_lines = [f"题目：{title.strip()}"]
+    lines = [f"题目：{title}"]
     if options:
-        for idx, opt in enumerate(options):
-            user_lines.append(f"{chr(ord('A') + idx)}. {opt}")
+        for index, option in enumerate(options):
+            label = option.label if isinstance(option, OptionObject) else None
+            label = label or chr(ord("A") + index)
+            text = option.text if isinstance(option, OptionObject) else option
+            lines.append(f"{label}. {text}")
 
-    messages: List[Dict[str, str]] = [
-        {"role": "system", "content": system},
-        {"role": "user", "content": "\n".join(user_lines)}
-    ]
-    return messages
+    return (
+        "你是一个严谨的答题助手。请根据题目作答。"
+        f"{instruction}不要输出解释或其他内容。",
+        "\n".join(lines),
+    )

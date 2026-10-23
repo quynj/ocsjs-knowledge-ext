@@ -1,36 +1,48 @@
-from typing import List, Optional, Union, Dict, Any
-from pydantic import BaseModel, Field, model_validator
+from typing import Annotated, Literal
+
+from pydantic import BaseModel, StringConstraints, field_validator
+
+QuestionType = Literal[
+    "single",
+    "multiple",
+    "judge",
+    "judgement",
+    "judgment",
+    "truefalse",
+    "tf",
+]
+NonEmptyString = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
 class OptionObject(BaseModel):
-    label: Optional[str] = None
-    text: str
+    label: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1, pattern="^[A-Za-z]$")
+    ] | None = None
+    text: NonEmptyString
 
 
-OptionsType = Union[List[str], List[OptionObject]]
+Option = str | OptionObject
 
 
 class QueryRequest(BaseModel):
-    title: str
-    # 允许字符串（\n 分隔）或数组/对象数组
-    options: Optional[Union[str, OptionsType]] = None
-    type: Optional[str] = Field(None, description="single | multiple | judgement | fill | 任意字符串")
+    title: NonEmptyString
+    options: list[Option] | None = None
+    type: QuestionType
 
-    @model_validator(mode="after")
-    def valid_title(self) -> "QueryRequest":
-        if not self.title:
-            raise ValueError("missing title")
-        return self
+    @field_validator("type", mode="before")
+    @classmethod
+    def normalize_type(cls, value: str) -> str:
+        return value.lower() if isinstance(value, str) else value
 
 
 class AnswerData(BaseModel):
-    answer: Union[str, List[str]]
-    question: Optional[str] = None
+    answer: str
+    question: str
     ai: bool = True
 
 
 class SuccessResponse(BaseModel):
-    code: int = 0
+    code: Literal[0] = 0
     data: AnswerData
 
 

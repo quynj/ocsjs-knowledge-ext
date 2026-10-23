@@ -1,77 +1,60 @@
-from typing import List, Optional, Union
 import re
 
+from app.models import OptionObject
 
-def _normalize_text(text: str) -> str:
-    return re.sub(r"\s+", " ", text.strip()).lower()
-
-
-def parse_single(raw: str, options: Optional[List[str]]) -> Union[str, List[str]]:
-    # 优先匹配字母
-    m = re.search(r"\b([A-Z])\b", raw)
-    if m:
-        return m.group(1)
-    if options:
-        norm_raw = _normalize_text(raw)
-        scores = [(_normalize_text(o) in norm_raw, idx) for idx, o in enumerate(options)]
-        scores.sort(reverse=True)
-        if scores and scores[0][0]:
-            return chr(ord('A') + scores[0][1])
-    # 兜底返回原文
-    return raw.strip()
+_SINGLE_LABEL_PATTERN = re.compile(r"(?<![A-Z])([A-Z])(?![A-Z])")
 
 
-def parse_multiple(raw: str, options: Optional[List[str]]) -> Union[str, List[str]]:
-    # 抽取多个大写字母
-    letters = re.findall(r"[A-Z]", raw)
-    if letters:
-        # 去重保持顺序
-        seen = set()
-        uniq = []
-        for ch in letters:
-            if ch not in seen:
-                seen.add(ch)
-                uniq.append(ch)
-        return uniq
-    # 兜底：按单选逻辑
-    single = parse_single(raw, options)
-    if isinstance(single, list):
-        return single
-    return [single] if isinstance(single, str) else single
+def _option_labels(options: list[str | OptionObject] | None) -> list[str]:
+    if not options:
+        return []
+    return [
+        (option.label or chr(ord("A") + index)).upper()
+        if isinstance(option, OptionObject)
+        else chr(ord("A") + index)
+        for index, option in enumerate(options)
+    ]
 
 
-def parse_judge(raw: str) -> str:
-    s = _normalize_text(raw)
-    if any(x in s for x in ["true", "正确", "对", "yes"]):
-        return "正确"
-    if any(x in s for x in ["false", "错误", "错", "no"]):
-        return "错误"
-    # 兜底原文
-    return raw.strip()
+def _choice_labels(
+    raw: str, options: list[str | OptionObject] | None
+) -> list[str]:
+    labels = _option_labels(options)
+    valid_labels = set(labels) if labels else set("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    text = raw.strip().upper()
+    if labels:
+        for index, option in enumerate(options or []):
+            option_text = option.text if isinstance(option, OptionObject) else option
+            if option_text.strip().casefold() in text.casefold():
+                return [labels[index]]
+
+    candidates = _SINGLE_LABEL_PATTERN.findall(text)
+    if not candidates and re.fullmatch(r"[A-Z]+", text):
+        candidates = list(text)
+    if not candidates:
+        raise ValueError("The model response contains no option labels")
+
+    unique = list(dict.fromkeys(label for label in candidates if label in valid_labels))
+    if not unique:
+        raise ValueError("The model response contains no valid option labels")
+    return unique
 
 
-def parse_fill(raw: str) -> str:
-    return raw.strip()
+def parse_answer(
+    raw: str, qtype: str, options: list[str | OptionObject] | None
+) -> str:
+    normalized_type = qtype.lower()
+    if normalized_type in ("judge", "judgement", "judgment", "truefalse", "tf"):
+        text = raw.strip().casefold()
+        if any(token in text for token in ("错误", "不正确", "不对", "错", "false", "no")):
+            return "错误"
+        if any(token in text for token in ("正确", "对", "true", "yes")):
+            return "正确"
+        raise ValueError("The model response is not a recognizable judgment")
 
-
-def parse_answer(raw: str, qtype: Optional[str], options: Optional[List[str]]) -> Union[str, List[str]]:
-    t = (qtype or "").lower()
-    if t.startswith("single"):
-        return parse_single(raw, options)
-    if t.startswith("multiple"):
-        return parse_multiple(raw, options)
-    if (t.startswith("judge") or t in ("tf", "truefalse", "judgement", "judgment")):
-        return parse_judge(raw)
-    if t.startswith("fill"):
-        return parse_fill(raw)
-    # 未知题型，尝试智能推断：若抽到多字母则多选，否则单选
-    letters = re.findall(r"[A-Z]", raw)
-    if len(letters) > 1:
-        seen = set()
-        uniq = []
-        for ch in letters:
-            if ch not in seen:
-                seen.add(ch)
-                uniq.append(ch)
-        return uniq
-    return parse_single(raw, options)
+    selected = _choice_labels(raw, options)
+    if normalized_type == "single":
+        if len(selected) != 1:
+            raise ValueError("The model returned multiple answers for a single-choice question")
+        return selected[0]
+    return "#".join(selected)
