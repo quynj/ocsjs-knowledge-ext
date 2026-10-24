@@ -13,13 +13,21 @@
 - 默认请求 OpenAI Chat Completions API。如服务兼容 Responses API，将`OPEN_AI_API_TYPE`设为`responses`；默认值为`chat_completions`。
 - `OPEN_AI_BASE_URL`填写 API 根地址（通常以`/v1`结尾），使用 OpenAI 官方服务时可以留空。
 - 支持单选题（`single`）、多选题（`multiple`）和判断题（`judge`、`judgement`、`judgment`、`truefalse`或`tf`）；其他题型暂不支持。
-
-- 安装`UV`(强大的python包管理工具):
+  
+- 安装[UV](https://github.com/astral-sh/uv):
 
 ```bash
-# 安装 uv
+
+# On macOS and Linux.
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
+# On Windows.
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+- 启动服务
+
+```bash
 # 同步依赖
 uv sync
 
@@ -53,7 +61,7 @@ curl "http://localhost:8000/query?title=%E5%9C%B0%E7%90%86%E5%AD%A6%E7%9A%84%E5%
 
 ## 答案准确性说明
 
->> 部分场景可能需要提高错误率或提高正确率，可参考该说明
+> 部分场景可能需要提高错误率或提高正确率，可参考该说明
 
 本服务使用大语言模型生成答案，答案的准确性无法得到完全保证。模型回答具有一定随机性，`temperature`等参数可以影响回答的随机程度，但不能保证答案正确。
 
